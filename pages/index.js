@@ -91,7 +91,7 @@ export default function Home() {
             }
 
             clean();
-        }, 4000);
+        }, 3500);
     }
 
     function clean() {
