@@ -4,16 +4,15 @@ import styles from "../styles/Home.module.css";
 import axios from "axios";
 
 export default function Home() {
-    const [deck, setDeck] = useState("");
-    const [dealer, setDealer] = useState([]);
-    const [player, setPlayer] = useState([]);
-    const [sum, setSum] = useState(0);
+    const [deck, setDeck] = useState(null);
 
-    const delay = (time) => {
-        return new Promise((resolve) => {
-            setTimeout(() => resolve(), time);
-        });
-    };
+    const [dealer, setDealer] = useState([]);
+    const [dealerSum, setDealerSum] = useState(0);
+
+    const [player, setPlayer] = useState([]);
+    const [playerSum, setPlayerSum] = useState(0);
+
+    const [show, setShow] = useState(false);
 
     const api = async (path) => {
         try {
@@ -32,6 +31,8 @@ export default function Home() {
     };
 
     const addPlayerCard = async (deckID, number) => {
+        if (playerSum + sum >= 21 || player.length + number > 5) return;
+        let sum = 0;
         const cards = await getCard(deckID, number);
         cards.forEach((card) => {
             const value = !isNaN(card.value)
@@ -39,22 +40,67 @@ export default function Home() {
                 : card.value === "ACE"
                 ? 11
                 : 10;
-            setSum(sum + value);
+            setPlayerSum((prevState) => prevState + value);
+            sum += value;
         });
-        setPlayer([...player, ...cards]);
+        setPlayer((prevState) => [...prevState, ...cards]);
+        if (playerSum + sum >= 21 || player.length + number >= 5) {
+            await endGame(playerSum + sum, dealerSum);
+        }
+    };
+
+    const addDealerCard = async (deckID, number) => {
+        let sum = 0;
+        const cards = await getCard(deckID, number);
+        cards.forEach((card) => {
+            const value = !isNaN(card.value)
+                ? Number(card.value)
+                : card.value === "ACE"
+                ? 11
+                : 10;
+            setDealerSum((prevState) => prevState + value);
+            sum += value;
+        });
+        setDealer((prevState) => [...prevState, ...cards]);
+        if (dealerSum + sum >= 21) await endGame(playerSum, dealerSum + sum);
     };
 
     const newDeck = async () => {
-        setPlayer([]);
-        console.log(player);
-
+        clean();
         const deck = await api("/deck/new/shuffle/?deck_count=1");
         return deck;
     };
 
     async function newGame() {
         const { deck_id } = await newDeck();
+        setDeck(deck_id);
+
         await addPlayerCard(deck_id, 2);
+        await addDealerCard(deck_id, 2);
+    }
+
+    async function endGame(player, dealer) {
+        setShow(true);
+        setTimeout(() => {
+            if (dealer > player || player > 21) {
+                alert("Você Perdeu!");
+            } else if (player > dealer) {
+                alert("Você Ganhou!");
+            } else {
+                alert("Empate!");
+            }
+
+            clean();
+        }, 1000);
+    }
+
+    function clean() {
+        setDealer([]);
+        setDealerSum(0);
+        setPlayer([]);
+        setPlayerSum(0);
+        setDeck(null);
+        setShow(false);
     }
 
     return (
@@ -68,14 +114,17 @@ export default function Home() {
 
             <div className={styles.center}>
                 <div className={styles.hand}>
-                    <Image
-                        className={styles.card}
-                        src="https://deckofcardsapi.com/static/img/8C.png"
-                        alt=""
-                        width={160}
-                        height={248}
-                        layout="fixed"
-                    />
+                    {dealer.map((card, index) => (
+                        <Image
+                            className={styles.card}
+                            src={show ? card.image : "/verse.png"}
+                            alt={card.code}
+                            width={160}
+                            height={248}
+                            layout="fixed"
+                            key={index}
+                        />
+                    ))}
                 </div>
                 <div className={styles.hand}>
                     {player.map((card, index) => (
@@ -92,8 +141,20 @@ export default function Home() {
                 </div>
             </div>
             <div className={styles.options}>
-                <button className={styles.button}>Comprar</button>
-                <button className={styles.button}>Parar</button>
+                <button
+                    className={styles.button}
+                    onClick={() => addPlayerCard(deck, 1)}
+                    style={{ display: deck === null ? "none" : "" }}
+                >
+                    Comprar
+                </button>
+                <button
+                    className={styles.button}
+                    onClick={() => endGame(playerSum, dealerSum)}
+                    style={{ display: deck === null ? "none" : "" }}
+                >
+                    Parar
+                </button>
             </div>
         </main>
     );
